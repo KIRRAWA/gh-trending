@@ -192,10 +192,15 @@
   <div id="tab-trending"><div id="repoList">加载中...</div></div>
   <!-- Search Tab -->
   <div id="tab-search" style="display:none">
-    <div class="search-bar-wrap">
+    <div class="search-bar-wrap" style="flex-wrap:wrap">
       <input class="search-input" id="searchInput" type="text"
-       placeholder="输入关键词搜索 GitHub 项目…例如: machine learning, web framework, rust cli"
-       onkeydown="if(event.key==='Enter')doSearch()">
+       placeholder="关键词…例如: machine learning, web framework, rust cli"
+       onkeydown="if(event.key==='Enter')doSearch()"
+       style="min-width:200px">
+      <input class="search-input" id="searchOwner" type="text"
+       placeholder="👤 发布者 (可选)…例如: torvalds, microsoft, vercel"
+       onkeydown="if(event.key==='Enter')doSearch()"
+       style="min-width:160px;max-width:200px">
       <select class="search-select" id="searchSort">
         <option value="stars">⭐ 最多 Star</option>
         <option value="updated">🕐 最近更新</option>
@@ -204,7 +209,7 @@
       <button class="btn btn-primary" onclick="doSearch()">🔍 搜索</button>
     </div>
     <div class="search-hint" style="margin-bottom:16px">
-      💡 试试: <code>machine learning</code> · <code>language:python</code> · <code>topic:react</code> · <code>stars:>1000</code>
+      💡 搜: <code>machine learning</code> · <code>language:python</code> · <code>topic:react</code> · <code>stars:>1000</code> · 或在上方 👤 框填入用户名只看某人的项目
     </div>
     <div id="searchResults"></div>
     <div class="pagination" id="searchPagination"></div>
@@ -534,8 +539,14 @@ function switchTab(tab) {
 
 // ─── Search ────────────────────────────────────
 async function doSearch(page = 1) {
-  const query = document.getElementById('searchInput').value.trim();
-  if (!query) return;
+  const keyword = document.getElementById('searchInput').value.trim();
+  const owner = document.getElementById('searchOwner').value.trim();
+  if (!keyword && !owner) return;
+
+  // Build query: optional owner filter + keyword
+  let query = '';
+  if (owner) query += `user:${owner}`;
+  if (keyword) query += (query ? ' ' : '') + keyword;
 
   searchPage = page;
   lastSearchQuery = query;
