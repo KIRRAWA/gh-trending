@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Data (runtime data, not source)
+data/trending.json
+data/downloads.json
+data/proxy_config.json
+data/server.log
+data/server.err
+
+# Downloaded repos
+repos/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# OpenClaw workspace
+.openclaw/

@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitHub Trending · 每日精选</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f8fa;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f0f4f8;
+    --border: #d0d7de;
+    --text: #1f2328;
+    --text-dim: #656d76;
+    --accent: #0969da;
+    --accent-bg: #ddf4ff;
+    --green: #1a7f37;
+    --orange: #bc4c00;
+    --purple: #8250df;
+    --red: #cf222e;
+    --stale: #bf8700;
+    --radius: 10px;
+    --shadow: 0 1px 3px rgba(31,35,40,0.08);
+    --shadow-hover: 0 4px 14px rgba(31,35,40,0.12);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; line-height: 1.5;
+  }
+
+  .header {
+    background: var(--bg-card); border-bottom: 1px solid var(--border);
+    padding: 14px 24px; position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; box-shadow: 0 1px 2px rgba(31,35,40,0.04);
+  }
+  .header-title { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .header-title .icon { font-size: 24px; }
+  .header-status { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--text-dim); flex-wrap: wrap; }
+
+  .freshness-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 600;
+  }
+  .freshness-badge.live { background: #dafbe1; color: var(--green); }
+  .freshness-badge.stale { background: #fff8c5; color: var(--stale); }
+  .freshness-badge.old { background: #fff1f0; color: var(--red); }
+
+  .proxy-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .proxy-dot.ok { background: var(--green); }
+  .proxy-dot.err { background: var(--red); }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text);
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: all 0.15s; text-decoration: none;
+  }
+  .btn:hover { background: var(--bg-card-hover); border-color: #0969da55; }
+  .btn-primary { background: #1f883d; border-color: #1f883d; color: #fff; }
+  .btn-primary:hover { background: #1a7f37; }
+  .btn-primary.fetching { background: #8250df; border-color: #8250df; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
+  .btn-danger { border-color: var(--red); color: var(--red); background: #fff; }
+  .btn-danger:hover { background: #fff0f0; }
+
+  .main { max-width: 920px; margin: 0 auto; padding: 24px; }
+
+  .tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; }
+  .tab {
+    padding: 10px 22px; font-size: 14px; font-weight: 600;
+    cursor: pointer; color: var(--text-dim);
+    border-bottom: 2px solid transparent; transition: all 0.15s; margin-bottom: -2px;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab:hover { color: var(--text); }
+
+  .repo-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); margin-bottom: 14px;
+    overflow: hidden; transition: all 0.2s; box-shadow: var(--shadow);
+  }
+  .repo-card:hover { box-shadow: var(--shadow-hover); border-color: #0969da40; }
+  .repo-card.expanded { border-color: var(--accent); box-shadow: var(--shadow-hover); }
+
+  .repo-header {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 18px; cursor: pointer;
+  }
+  .repo-rank { font-size: 22px; font-weight: 800; color: var(--text-dim); min-width: 36px; text-align: center; line-height: 1.2; }
+  .repo-rank.gold { color: #d4a017; } .repo-rank.silver { color: #8b95a5; } .repo-rank.bronze { color: #b87333; }
+
+  .repo-info { flex: 1; min-width: 0; }
+  .repo-name { font-size: 16px; font-weight: 700; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .repo-name a { color: inherit; text-decoration: none; }
+  .repo-name a:hover { text-decoration: underline; }
+  .repo-desc { font-size: 13px; color: var(--text-dim); margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .repo-meta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 12px; color: var(--text-dim); }
+  .repo-meta span { display: flex; align-items: center; gap: 4px; }
+  .lang-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .tag { font-size: 11px; padding: 2px 10px; border-radius: 12px; background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+
+  .repo-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  .repo-readme { display: none; border-top: 1px solid var(--border); max-height: 500px; overflow-y: auto; background: #fafbfc; }
+  .repo-card.expanded .repo-readme { display: block; }
+  .readme-content { padding: 20px 24px; font-size: 14px; line-height: 1.7; color: var(--text); }
+  .readme-content h1 { font-size: 1.6em; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin: 16px 0 12px; }
+  .readme-content h2 { font-size: 1.3em; border-bottom: 1px solid var(--border); padding-bottom: 6px; margin: 16px 0 10px; }
+  .readme-content h3 { font-size: 1.1em; margin: 14px 0 8px; }
+  .readme-content img { max-width: 100%; height: auto; border-radius: 6px; margin: 8px 0; }
+  .readme-content a { color: var(--accent); }
+  .readme-content code { background: #e8ecf1; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+  .readme-content pre { background: #f0f2f4; padding: 14px 18px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.5; border: 1px solid #d8dee4; }
+  .readme-content pre code { background: none; padding: 0; }
+  .readme-content ul, .readme-content ol { padding-left: 24px; margin: 6px 0; }
+  .readme-content blockquote { border-left: 4px solid var(--accent); padding: 4px 14px; margin: 10px 0; color: var(--text-dim); background: #f6f8fa; }
+  .readme-content table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+  .readme-content th, .readme-content td { border: 1px solid var(--border); padding: 6px 12px; text-align: left; font-size: 13px; }
+  .readme-content th { background: #f0f2f4; font-weight: 600; }
+  .readme-loading { padding: 32px; text-align: center; color: var(--text-dim); }
+
+  .progress-wrap { padding: 10px 18px 16px; display: none; background: #fafbfc; }
+  .progress-wrap.active { display: block; }
+  .progress-bar { height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; width: 0%; }
+  .progress-text { font-size: 12px; color: var(--text-dim); margin-top: 6px; display: flex; justify-content: space-between; }
+  .progress-done { color: var(--green); font-weight: 700; }
+
+  /* ─── Search Tab ──────────────────────── */
+  .search-bar-wrap {
+    display: flex; gap: 10px; margin-bottom: 20px;
+    padding: 16px; background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+  }
+  .search-input {
+    flex: 1; padding: 10px 14px; font-size: 14px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--text);
+    outline: none; transition: border-color 0.15s;
+  }
+  .search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #0969da20; }
+  .search-select {
+    padding: 10px 12px; font-size: 13px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--text); cursor: pointer;
+  }
+  .search-hint { font-size: 12px; color: var(--text-dim); margin-top: 8px; }
+  .search-hint code { background: #e8ecf1; padding: 1px 6px; border-radius: 3px; }
+  .result-count { font-size: 13px; color: var(--text-dim); margin-bottom: 12px; font-weight: 600; }
+  .pagination { display: flex; gap: 8px; justify-content: center; margin-top: 20px; }
+  .pagination .btn:disabled { opacity: 0.5; cursor: default; }
+
+  .dl-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 18px; margin-bottom: 10px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; box-shadow: var(--shadow);
+  }
+  .dl-name { font-weight: 700; font-size: 15px; color: var(--text); }
+  .dl-meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  .empty-state { text-align: center; padding: 60px 24px; color: var(--text-dim); font-size: 15px; }
+  .empty-state .icon { font-size: 52px; margin-bottom: 16px; }
+
+  @media (max-width: 640px) {
+    .main { padding: 12px; } .repo-rank { font-size: 18px; min-width: 24px; }
+    .repo-actions { flex-direction: column; } .header { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title"><span class="icon">🦞</span> GitHub Trending</div>
+  <div class="header-status" id="statusBar"><span>加载中...</span></div>
+  <button class="btn btn-primary" id="refreshBtn" onclick="doFetch()">🔄 从 GitHub 实时获取</button>
+</div>
+
+<div class="main">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('trending')">🔥 今日排行</div>
+    <div class="tab" onclick="switchTab('search')">🔍 搜索项目</div>
+    <div class="tab" onclick="switchTab('manage')">📦 已下载 (<span id="dlCount">0</span>)</div>
+  </div>
+  <div id="tab-trending"><div id="repoList">加载中...</div></div>
+  <!-- Search Tab -->
+  <div id="tab-search" style="display:none">
+    <div class="search-bar-wrap">
+      <input class="search-input" id="searchInput" type="text"
+       placeholder="输入关键词搜索 GitHub 项目…例如: machine learning, web framework, rust cli"
+       onkeydown="if(event.key==='Enter')doSearch()">
+      <select class="search-select" id="searchSort">
+        <option value="stars">⭐ 最多 Star</option>
+        <option value="updated">🕐 最近更新</option>
+        <option value="forks">🔀 最多 Fork</option>
+      </select>
+      <button class="btn btn-primary" onclick="doSearch()">🔍 搜索</button>
+    </div>
+    <div class="search-hint" style="margin-bottom:16px">
+      💡 试试: <code>machine learning</code> · <code>language:python</code> · <code>topic:react</code> · <code>stars:>1000</code>
+    </div>
+    <div id="searchResults"></div>
+    <div class="pagination" id="searchPagination"></div>
+  </div>
+  <div id="tab-manage" style="display:none"><div id="dlList"></div></div>
+</div>
+
+<script>
+// ─── State ─────────────────────────────────────
+let trendingData = null;
+let currentTab = 'trending';
+let freshnessTimer = null;
+let searchPage = 1;
+let lastSearchQuery = '';
+const POLL_INTERVAL = 2000;
+let activeJobs = new Set();
+
+marked.setOptions({ breaks: false, gfm: true });
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, opts);
+  return res.json();
+}
+
+// ─── Init ──────────────────────────────────────
+async function init() {
+  await Promise.all([loadTrending(), checkProxy()]);
+  loadDownloads();
+  startFreshnessTicker();
+}
+init();
+
+// ─── Freshness (real-time countdown) ────────────
+function startFreshnessTicker() {
+  if (freshnessTimer) clearInterval(freshnessTimer);
+  freshnessTimer = setInterval(updateFreshnessUI, 30000); // every 30s
+}
+
+function updateFreshnessUI() {
+  if (!trendingData || !trendingData.fetched_at) return;
+  // Recalculate age
+  try {
+    const fetched = new Date(trendingData.fetched_at.replace(' ', 'T') + ':00');
+    const ageMin = Math.round((Date.now() - fetched.getTime()) / 60000);
+    trendingData.age_minutes = ageMin;
+    trendingData.is_stale = ageMin > 60;
+    const badge = document.getElementById('freshnessBadge');
+    if (badge) badge.outerHTML = freshnessBadgeHTML(ageMin);
+  } catch(e) {}
+}
+
+function freshnessBadgeHTML(ageMin) {
+  if (ageMin == null) return '';
+  let cls, text;
+  if (ageMin < 10) { cls = 'live'; text = `🟢 ${ageMin} 分钟前`; }
+  else if (ageMin < 60) { cls = 'live'; text = `🟢 ${ageMin} 分钟前`; }
+  else if (ageMin < 180) { cls = 'stale'; text = `🟡 ${Math.round(ageMin/60)} 小时前`; }
+  else { cls = 'old'; text = `🔴 ${Math.round(ageMin/60)} 小时前`; }
+  return `<span class="freshness-badge ${cls}" id="freshnessBadge" title="数据新鲜度">${text}</span>`;
+}
+
+// ─── Data Loading ──────────────────────────────
+async function checkProxy() {
+  try {
+    const s = await api('/api/proxy-status');
+    document.getElementById('statusBar').innerHTML = s.ok
+      ? `<span class="proxy-dot ok"></span> ${s.description} · <span id="freshnessPlaceholder"></span>`
+      : `<span class="proxy-dot err"></span> ${s.message}`;
+  } catch(e) {
+    document.getElementById('statusBar').innerHTML = `<span class="proxy-dot err"></span> 代理检测失败`;
+  }
+}
+
+async function loadTrending() {
+  try {
+    trendingData = await api('/api/trending');
+    renderTrending();
+    updateStatusBar();
+    // Auto-refresh if data is very stale (>3 hours)
+    if (trendingData.is_stale && trendingData.age_minutes > 180 && trendingData.repos.length > 0) {
+      console.log('Data is stale (' + trendingData.age_minutes + ' min), auto-refreshing...');
+      doFetch(true); // silent auto-refresh
+    }
+  } catch(e) {
+    document.getElementById('repoList').innerHTML =
+      '<div class="empty-state"><div class="icon">⚠️</div><p>无法加载数据，请确保服务器已运行且代理可用</p></div>';
+  }
+}
+
+function updateStatusBar() {
+  if (!trendingData) return;
+  const age = trendingData.age_minutes;
+  const badge = freshnessBadgeHTML(age);
+  const placeholder = document.getElementById('freshnessPlaceholder');
+  if (placeholder) placeholder.outerHTML = badge;
+}
+
+async function doFetch(silent = false) {
+  const btn = document.getElementById('refreshBtn');
+  const origText = btn.textContent;
+  btn.textContent = '⏳ 正在从 GitHub 抓取...';
+  btn.classList.add('fetching');
+  btn.disabled = true;
+
+  if (!silent) {
+    document.getElementById('repoList').innerHTML =
+      '<div class="empty-state"><div class="icon">🔍</div><p>正在实时抓取 GitHub Trending 最新数据...</p><p style="font-size:12px;color:var(--text-dim);margin-top:4px">通过西部世界 VPN 代理访问</p></div>';
+  }
+
+  try {
+    await api('/api/fetch');
+    // Wait for fetch to complete, then reload
+    let attempts = 0;
+    while (attempts < 30) {
+      await new Promise(r => setTimeout(r, 2000));
+      const fresh = await api('/api/freshness');
+      if (fresh.age_minutes !== null && fresh.age_minutes < 2) break; // got fresh data
+      attempts++;
+    }
+    await loadTrending();
+  } catch(e) {
+    if (!silent) alert('刷新失败: ' + e.message);
+  }
+
+  btn.textContent = origText;
+  btn.classList.remove('fetching');
+  btn.disabled = false;
+}
+
+// ─── Render Cards ──────────────────────────────
+function renderTrending() {
+  const repos = trendingData?.repos || [];
+  if (!repos.length) {
+    document.getElementById('repoList').innerHTML =
+      '<div class="empty-state"><div class="icon">📭</div><p>暂未获取到 Trending 数据</p><button class="btn btn-primary" onclick="doFetch()">🔄 立即从 GitHub 获取</button></div>';
+    return;
+  }
+
+  const rankClasses = ['gold','silver','bronze','',''];
+  let html = '';
+  repos.forEach((r, i) => {
+    const stars = (r.total_stars || r.stars_today || 0).toLocaleString();
+    const starsDay = (r.stars_today || 0).toLocaleString();
+    const rankCls = rankClasses[i] || '';
+    const summary = r.summary_zh ? `<div style="font-size:12px;color:#0969da;margin-top:4px;">💡 ${r.summary_zh}</div>` : '';
+    html += `
+    <div class="repo-card" id="card-${i}">
+      <div class="repo-header" onclick="toggleCard(${i})">
+        <div class="repo-rank ${rankCls}">#${i+1}</div>
+        <div class="repo-info">
+          <div class="repo-name">
+            <a href="${r.url}" target="_blank" onclick="event.stopPropagation()">${r.full_name}</a>
+          </div>
+          <div class="repo-desc">${r.description || '(无描述)'}</div>
+          ${summary}
+          <div class="repo-meta">
+            <span>⭐ ${stars} total</span>
+            <span>📈 ${starsDay} today</span>
+            ${r.language ? `<span><span class="lang-dot" style="background:${langColor(r.language)}"></span> ${r.language}</span>` : ''}
+            ${r.topics ? r.topics.slice(0,4).map(t => `<span class="tag">${t}</span>`).join('') : ''}
+            ${r.license ? `<span>📜 ${r.license}</span>` : ''}
+          </div>
+        </div>
+        <div class="repo-actions" onclick="event.stopPropagation()">
+          <button class="btn" onclick="toggleCard(${i})">📖 README</button>
+          <button class="btn btn-primary" onclick="startDownload('${r.full_name}', '${r.url}')" id="dl-btn-${i}">⬇ 下载</button>
+        </div>
+      </div>
+      <div class="progress-wrap" id="progress-${i}">
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill-${i}"></div></div>
+        <div class="progress-text">
+          <span id="progress-status-${i}"></span><span id="progress-pct-${i}"></span>
+        </div>
+      </div>
+      <div class="repo-readme" id="readme-${i}">
+        <div class="readme-content" id="readme-content-${i}">
+          <div class="readme-loading">⏳ 正在加载 README...</div>
+        </div>
+      </div>
+    </div>`;
+  });
+  document.getElementById('repoList').innerHTML = html;
+}
+
+function langColor(lang) {
+  const c = {Python:'#3572A5',JavaScript:'#f1e05a',TypeScript:'#3178c6',Go:'#00ADD8',Rust:'#dea584',Java:'#b07219','C++':'#f34b7d',C:'#555555',Swift:'#F05138',Kotlin:'#A97BFF',Ruby:'#701516',PHP:'#4F5D95',Shell:'#89e051',HTML:'#e34c26',CSS:'#563d7c',Vue:'#41b883',Dart:'#00B4AB'};
+  return c[lang] || '#636c76';
+}
+
+// ─── README + Card Expansion ───────────────────
+let loadedReadmes = {};
+
+async function toggleCard(idx) {
+  const card = document.getElementById(`card-${idx}`);
+  const wasExpanded = card.classList.contains('expanded');
+  card.classList.toggle('expanded');
+
+  if (!wasExpanded && !loadedReadmes[idx]) {
+    const repo = trendingData.repos[idx];
+    const [owner, name] = repo.full_name.split('/');
+    loadedReadmes[idx] = 'loading';
+    try {
+      const data = await api(`/api/readme/${owner}/${name}`);
+      const content = document.getElementById(`readme-content-${idx}`);
+      if (data.readme) {
+        let html = marked.parse(data.readme);
+        html = html.replace(/<a /g, '<a target="_blank" rel="noopener" ');
+        content.innerHTML = html;
+        loadedReadmes[idx] = 'done';
+      } else {
+        content.innerHTML = '<div class="readme-loading">此项目没有 README 文件</div>';
+      }
+    } catch(e) {
+      document.getElementById(`readme-content-${idx}`).innerHTML =
+        '<div class="readme-loading">❌ README 加载失败，请检查网络</div>';
+    }
+  }
+}
+
+// ─── Download ──────────────────────────────────
+async function startDownload(fullName, url) {
+  const [owner, name] = fullName.split('/');
+  try {
+    const res = await api('/api/download', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url: url + '.git', name: name})
+    });
+    if (res.job_id) {
+      activeJobs.add(res.job_id);
+      const idx = trendingData.repos.findIndex(r => r.full_name === fullName);
+      if (idx >= 0) {
+        document.getElementById(`progress-${idx}`).classList.add('active');
+        document.getElementById(`dl-btn-${idx}`).disabled = true;
+        document.getElementById(`dl-btn-${idx}`).textContent = '⏳ 下载中';
+      }
+      pollJobs();
+    }
+  } catch(e) {
+    alert('下载失败: ' + e.message);
+  }
+}
+
+async function pollJobs() {
+  if (activeJobs.size === 0) return;
+  for (const jobId of activeJobs) {
+    try {
+      const job = await api(`/api/download/${jobId}/status`);
+      const idx = trendingData.repos.findIndex(r => r.full_name.endsWith('/' + job.repo));
+      if (idx >= 0) {
+        const fill = document.getElementById(`progress-fill-${idx}`);
+        const pct = document.getElementById(`progress-pct-${idx}`);
+        const status = document.getElementById(`progress-status-${idx}`);
+        if (fill) fill.style.width = job.progress + '%';
+        if (pct) pct.textContent = job.progress + '%';
+        if (status) status.textContent = job.status === 'done' ? '✅ 下载完成！文件已保存到 repos/ 目录' : '下载中...';
+        if (job.status === 'done') {
+          activeJobs.delete(jobId);
+          const btn = document.getElementById(`dl-btn-${idx}`);
+          if (btn) { btn.textContent = '✅ 已下载'; btn.className = 'btn'; btn.style.borderColor = 'var(--green)'; btn.style.color = 'var(--green)'; }
+          pct && pct.classList.add('progress-done');
+          loadDownloads();
+        }
+        if (job.status === 'error') {
+          activeJobs.delete(jobId);
+          if (status) status.textContent = '❌ ' + (job.error || '下载失败');
+        }
+      }
+    } catch(e) {}
+  }
+  if (activeJobs.size > 0) setTimeout(pollJobs, POLL_INTERVAL);
+}
+
+// ─── Manage Tab ────────────────────────────────
+async function loadDownloads() {
+  try {
+    const dl = await api('/api/downloads');
+    const repos = dl.repos || [];
+    document.getElementById('dlCount').textContent = repos.length;
+    const container = document.getElementById('dlList');
+    if (!repos.length) {
+      container.innerHTML = '<div class="empty-state"><div class="icon">📦</div><p>还没有下载任何项目</p><p style="font-size:13px;margin-top:8px">在「今日排行」点击 <b>⬇ 下载</b> 即可克隆到本地</p></div>';
+      return;
+    }
+    container.innerHTML = repos.map(r => `
+      <div class="dl-card">
+        <div>
+          <div class="dl-name">${r.name}</div>
+          <div class="dl-meta">${r.size_mb} MB · ${r.downloaded_at} · ${r.path}</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" onclick="openDir('${r.path}')">📂 打开目录</button>
+          <button class="btn btn-danger" onclick="deleteRepo('${r.name}')">🗑️</button>
+        </div>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+function openDir(path) {
+  fetch('/api/open-path', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({path: path})
+  }).catch(() => {});
+  const orig = event.target.textContent;
+  event.target.textContent = '✅ 已打开';
+  setTimeout(() => { event.target.textContent = orig; }, 2000);
+}
+
+async function deleteRepo(name) {
+  if (!confirm(`确认删除 ${name}？\n该操作将删除本地仓库文件。`)) return;
+  await api('/api/downloads/' + name, {method: 'DELETE'});
+  loadDownloads();
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active', (i===0 && tab==='trending') || (i===1 && tab==='search') || (i===2 && tab==='manage'));
+  });
+  document.getElementById('tab-trending').style.display = tab==='trending' ? '' : 'none';
+  document.getElementById('tab-search').style.display = tab==='search' ? '' : 'none';
+  document.getElementById('tab-manage').style.display = tab==='manage' ? '' : 'none';
+  if (tab==='manage') loadDownloads();
+  if (tab==='search') document.getElementById('searchInput').focus();
+}
+
+// ─── Search ────────────────────────────────────
+async function doSearch(page = 1) {
+  const query = document.getElementById('searchInput').value.trim();
+  if (!query) return;
+
+  searchPage = page;
+  lastSearchQuery = query;
+  const sort = document.getElementById('searchSort').value;
+
+  document.getElementById('searchResults').innerHTML =
+    '<div class="empty-state"><div class="icon">🔍</div><p>正在搜索 GitHub...</p></div>';
+  document.getElementById('searchPagination').innerHTML = '';
+
+  try {
+    const data = await api(`/api/search?q=${encodeURIComponent(query)}&sort=${sort}&page=${page}&per_page=10`);
+    renderSearchResults(data);
+  } catch(e) {
+    document.getElementById('searchResults').innerHTML =
+      '<div class="empty-state"><div class="icon">❌</div><p>搜索失败，请检查网络连接</p></div>';
+  }
+}
+
+function renderSearchResults(data) {
+  const { repos, total_count, page, per_page } = data;
+  searchReposCache = repos;  // cache for download/readme lookups
+  const totalPages = Math.ceil(total_count / per_page);
+  const container = document.getElementById('searchResults');
+  const pagContainer = document.getElementById('searchPagination');
+
+  if (!repos.length) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>没有找到匹配的项目</p><p style="font-size:13px">试试调整关键词或排序方式</p></div>';
+    return;
+  }
+
+  // Result count
+  let html = `<div class="result-count">找到 ${total_count.toLocaleString()} 个结果 · 第 ${page} 页 / 共 ${totalPages} 页</div>`;
+
+  repos.forEach((r, i) => {
+    const stars = (r.total_stars || 0).toLocaleString();
+    const forks = (r.forks || 0).toLocaleString();
+    const created = r.created_at ? r.created_at.slice(0,10) : '';
+    const updated = r.updated_at ? r.updated_at.slice(0,10) : '';
+    html += `
+    <div class="repo-card" id="search-card-${i}">
+      <div class="repo-header" onclick="toggleSearchCard(${i})">
+        <div class="repo-info">
+          <div class="repo-name">
+            <a href="${r.url}" target="_blank" onclick="event.stopPropagation()">${r.full_name}</a>
+          </div>
+          <div class="repo-desc">${r.description || '(无描述)'}</div>
+          <div class="repo-meta">
+            <span>⭐ ${stars}</span>
+            <span>🔀 ${forks}</span>
+            ${r.language ? `<span><span class="lang-dot" style="background:${langColor(r.language)}"></span> ${r.language}</span>` : ''}
+            ${r.license ? `<span>📜 ${r.license}</span>` : ''}
+            ${created ? `<span>📅 ${created}</span>` : ''}
+          </div>
+        </div>
+        <div class="repo-actions" onclick="event.stopPropagation()">
+          <button class="btn" onclick="toggleSearchCard(${i})">📖 README</button>
+          <button class="btn btn-primary" onclick="startDownloadSearch('${r.full_name}', '${r.url}', ${i})" id="search-dl-btn-${i}">⬇ 下载</button>
+        </div>
+      </div>
+      <div class="progress-wrap" id="search-progress-${i}">
+        <div class="progress-bar"><div class="progress-fill" id="search-progress-fill-${i}"></div></div>
+        <div class="progress-text">
+          <span id="search-progress-status-${i}"></span><span id="search-progress-pct-${i}"></span>
+        </div>
+      </div>
+      <div class="repo-readme" id="search-readme-${i}">
+        <div class="readme-content" id="search-readme-content-${i}">
+          <div class="readme-loading">⏳ 正在加载 README...</div>
+        </div>
+      </div>
+    </div>`;
+  });
+  container.innerHTML = html;
+
+  // Pagination
+  if (totalPages > 1) {
+    let pagHtml = '';
+    pagHtml += `<button class="btn" onclick="doSearch(${page-1})" ${page<=1?'disabled':''}>◀ 上一页</button>`;
+    // Page number buttons
+    const startPage = Math.max(1, page - 2);
+    const endPage = Math.min(totalPages, page + 2);
+    for (let p = startPage; p <= endPage; p++) {
+      pagHtml += `<button class="btn${p===page?' btn-primary':''}" onclick="doSearch(${p})">${p}</button>`;
+    }
+    pagHtml += `<button class="btn" onclick="doSearch(${page+1})" ${page>=totalPages?'disabled':''}>下一页 ▶</button>`;
+    pagContainer.innerHTML = pagHtml;
+  }
+}
+
+// Track search README loads separately
+let searchReadmes = {};
+let searchReposCache = [];
+
+async function toggleSearchCard(idx) {
+  const card = document.getElementById(`search-card-${idx}`);
+  if (!card) return;
+  const wasExpanded = card.classList.contains('expanded');
+  card.classList.toggle('expanded');
+
+  if (!wasExpanded && !searchReadmes[idx]) {
+    const repo = searchReposCache[idx];
+    if (!repo) return;
+    const [owner, name] = repo.full_name.split('/');
+    searchReadmes[idx] = 'loading';
+    try {
+      const data = await api(`/api/readme/${owner}/${name}`);
+      const content = document.getElementById(`search-readme-content-${idx}`);
+      if (content && data.readme) {
+        let html = marked.parse(data.readme);
+        html = html.replace(/<a /g, '<a target="_blank" rel="noopener" ');
+        content.innerHTML = html;
+        searchReadmes[idx] = 'done';
+      } else if (content) {
+        content.innerHTML = '<div class="readme-loading">没有 README 文件</div>';
+      }
+    } catch(e) {
+      const content = document.getElementById(`search-readme-content-${idx}`);
+      if (content) content.innerHTML = '<div class="readme-loading">❌ 加载失败</div>';
+    }
+  }
+}
+
+async function startDownloadSearch(fullName, url, idx) {
+  const [owner, name] = fullName.split('/');
+  try {
+    const res = await api('/api/download', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url: url + '.git', name: name})
+    });
+    if (res.job_id) {
+      activeJobs.add(res.job_id);
+      document.getElementById(`search-progress-${idx}`).classList.add('active');
+      document.getElementById(`search-dl-btn-${idx}`).disabled = true;
+      document.getElementById(`search-dl-btn-${idx}`).textContent = '⏳ 下载中';
+      pollSearchJobs();
+    }
+  } catch(e) {
+    alert('下载失败: ' + e.message);
+  }
+}
+
+async function pollSearchJobs() {
+  if (activeJobs.size === 0) return;
+  for (const jobId of activeJobs) {
+    try {
+      const job = await api(`/api/download/${jobId}/status`);
+      // find in search cache
+      const idx = searchReposCache.findIndex(r => r.full_name.endsWith('/' + job.repo));
+      if (idx >= 0) {
+        const fill = document.getElementById(`search-progress-fill-${idx}`);
+        const pct = document.getElementById(`search-progress-pct-${idx}`);
+        const status = document.getElementById(`search-progress-status-${idx}`);
+        if (fill) fill.style.width = job.progress + '%';
+        if (pct) pct.textContent = job.progress + '%';
+        if (status) status.textContent = job.status === 'done' ? '✅ 下载完成！' : '下载中...';
+        if (job.status === 'done') {
+          activeJobs.delete(jobId);
+          const btn = document.getElementById(`search-dl-btn-${idx}`);
+          if (btn) { btn.textContent = '✅ 已下载'; btn.className = 'btn'; btn.style.borderColor = 'var(--green)'; btn.style.color = 'var(--green)'; }
+          loadDownloads();
+        }
+      }
+    } catch(e) {}
+  }
+  if (activeJobs.size > 0) setTimeout(pollSearchJobs, POLL_INTERVAL);
+}
+</script>
+</body>
+</html>
